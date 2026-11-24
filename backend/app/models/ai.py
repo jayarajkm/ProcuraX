@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
 from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
@@ -39,7 +39,8 @@ class ChatbotMessage(IdMixin, Base):
     role: Mapped[str] = mapped_column(String(20))  # user | assistant
     content: Mapped[str] = mapped_column(Text)
     meta: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)  # approach, sources, confidence, steps
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), index=True)
+    # python-side default: server now() is the TRANSACTION start, so a user message and its reply would tie and could sort wrongly
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), server_default=func.now(), index=True)
 
 
 class IntentDefinition(IdMixin, TimestampMixin, Base):

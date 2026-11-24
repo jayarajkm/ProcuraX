@@ -19,6 +19,7 @@ IMPLEMENTED = {"rule_based", "nlp", "ml", "generative", "rag", "agentic"}
 class ChatIn(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     session_id: uuid.UUID | None = None
+    language: str = Field(default="en", max_length=8)
 
 
 def _llm_configured() -> bool:
@@ -30,6 +31,12 @@ def _type_out(t: ChatbotType) -> dict:
     return {"slug": t.slug, "name": t.name, "description": t.description, "technology": t.technology, "use_cases": t.use_cases,
             "example_prompts": t.example_prompts, "requires_llm": t.requires_llm, "available": t.slug in IMPLEMENTED,
             "configured": (not t.requires_llm) or _llm_configured()}
+
+
+@router.get("/languages")
+def languages(_: User = Depends(require("chat:use"))):
+    from app.chatbot.i18n import LANGUAGES
+    return [{"code": c, "name": n, "native_name": nn, "rtl": rtl} for c, n, nn, rtl in LANGUAGES]
 
 
 @router.get("/chatbots")
@@ -48,7 +55,7 @@ def chatbot(slug: str, db: Session = Depends(get_db), _: User = Depends(require(
 
 @router.post("/chatbots/{slug}/chat")
 def chat(slug: str, body: ChatIn, db: Session = Depends(get_db), user: User = Depends(require("chat:use"))):
-    out = chat_svc.chat(db, user, slug, body.message, body.session_id)
+    out = chat_svc.chat(db, user, slug, body.message, body.session_id, body.language)
     db.commit()
     return out
 

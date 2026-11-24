@@ -5,6 +5,8 @@ import { Can } from '@/auth/Can'
 import { useAuth } from '@/auth/AuthContext'
 import { ApprovalActions } from '@/components/ApprovalActions'
 import { RichText } from '@/components/chat/RichText'
+import { LanguageSelect } from '@/components/LanguageSelect'
+import { useLanguage, useLanguageInfo } from '@/hooks/useLanguage'
 import { DataTable, type Column } from '@/components/DataTable'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
@@ -35,14 +37,15 @@ function Json({ value }: { value: unknown }) {
 function RunForm({ onStarted }: { onStarted: (id: string) => void }) {
   const [text, setText] = useState('')
   const run = useRunAgent()
+  const lang = useLanguage()
   const [secs, setSecs] = useState(0)
   useEffect(() => {
     if (!run.isPending) { setSecs(0); return }
     const t = setInterval(() => setSecs((s) => s + 1), 1000)
     return () => clearInterval(t)
   }, [run.isPending])
-  const valid = text.trim().length >= 3
-  const go = () => { if (valid && !run.isPending) run.mutate(text.trim(), { onSuccess: (ex) => { onStarted(ex.id); setText('') } }) }
+  const valid = text.trim().length >= 3 && !lang.isLoading
+  const go = () => { if (valid && !run.isPending) run.mutate({ request: text.trim(), language: lang.code }, { onSuccess: (ex) => { onStarted(ex.id); setText('') } }) }
   return (
     <Card>
       <CardHeader><CardTitle>Run the agent</CardTitle></CardHeader>
@@ -53,6 +56,8 @@ function RunForm({ onStarted }: { onStarted: (id: string) => void }) {
             <button key={p} type="button" disabled={run.isPending} onClick={() => setText(p)} className="rounded-full border px-2.5 py-1 text-left text-xs hover:bg-muted disabled:opacity-50">{p}</button>
           ))}
         </div>
+        <LanguageSelect id="agent-language" label="Final answer language" disabled={run.isPending} />
+        <p className="text-xs text-muted-foreground" data-testid="agent-language-note">Plan, tool calls and audit logs stay in English; only the final answer is written in the selected language.</p>
         <Button className="w-full" onClick={go} disabled={!valid || run.isPending}>
           {run.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}{run.isPending ? 'Agent is working…' : 'Run agent'}
         </Button>
@@ -92,6 +97,7 @@ function ExecutionList({ selected, onSelect }: { selected?: string; onSelect: (i
 
 export function ExecutionDetail({ id }: { id: string }) {
   const { data: ex, isLoading, error, refetch } = useAgentExecution(id)
+  const li = useLanguageInfo()
   if (isLoading) return <Card className="p-5"><DetailSkeleton /></Card>
   if (error || !ex) return <Card><ErrorState error={error} onRetry={() => void refetch()} /></Card>
   return (
@@ -99,7 +105,7 @@ export function ExecutionDetail({ id }: { id: string }) {
       <Card>
         <CardHeader>
           <div className="min-w-0"><CardTitle>Request</CardTitle><p className="mt-1 break-words text-sm">{ex.user_request}</p></div>
-          <StatusBadge status={ex.status} />
+          <div className="flex flex-wrap items-center gap-1.5">{ex.language && <Badge tone="blue" data-testid="execution-language">Language: {li.nameOf(ex.language)}</Badge>}<StatusBadge status={ex.status} /></div>
         </CardHeader>
         <CardContent className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
           <span>Started: {fmtDateTime(ex.created_at)}</span><span>Finished: {fmtDateTime(ex.finished_at)}</span><span className="font-mono">{ex.id}</span>
@@ -116,7 +122,7 @@ export function ExecutionDetail({ id }: { id: string }) {
 
       {ex.error && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-800">{ex.error}</p>}
       {ex.final_result && (
-        <Card><CardHeader><CardTitle>Final result</CardTitle></CardHeader><CardContent className="text-sm"><RichText text={ex.final_result} /></CardContent></Card>
+        <Card><CardHeader><CardTitle>Final result</CardTitle></CardHeader><CardContent className={cn('text-sm', li.isRtl(ex.language) && 'text-right')} dir={li.isRtl(ex.language) ? 'rtl' : undefined}><RichText text={ex.final_result} />{ex.language && ex.language !== 'en' && <p dir="ltr" className="mt-3 text-xs text-muted-foreground">Plan, tool calls and audit logs stay in English; only the final answer is written in {li.nameOf(ex.language)}.</p>}</CardContent></Card>
       )}
 
       <Card>

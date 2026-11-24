@@ -10,6 +10,8 @@ import userEvent from '@testing-library/user-event'
 import { ChatPlaygroundPage } from '@/pages/ChatPlaygroundPage'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { AuthProvider } from '@/auth/AuthContext'
+import { AIAnalyticsPage } from '@/pages/AIAnalyticsPage'
+import { ComparePage } from '@/pages/ComparePage'
 import { AgentPage } from '@/pages/AgentPage'
 import { ChatbotsPage } from '@/pages/ChatbotsPage'
 import { DocumentsPage } from '@/pages/DocumentsPage'
@@ -57,6 +59,9 @@ describe.skipIf(!API)('live backend smoke', () => {
     ['Knowledge Center', <KnowledgePage />, /Search the knowledge base/],
     ['Agent Workspace', <AgentPage />, /Run the agent/],
     ['ML Models', <MLModelsPage />, /Training rows/],
+    ['Overview insights (list only, no narrative)', <OverviewPage />, /deterministic rules/],
+    ['AI Analytics', <AIAnalyticsPage />, /Questions per bot/],
+    ['Chatbot Comparison (idle: sends nothing)', <ComparePage />, /Bots to include/],
   ])('%s renders live data without console errors', async (_n, ui, text) => {
     mount(ui)
     await waitFor(() => expect(screen.getAllByText(text).length).toBeGreaterThan(0), { timeout: 8000 })

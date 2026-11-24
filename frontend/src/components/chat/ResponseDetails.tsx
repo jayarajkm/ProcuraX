@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { fmtPercent } from '@/lib/format'
 import type { ChatMetadata } from '@/lib/types'
+import { TranslationSection } from './TranslationInfo'
 
 export function SimilarityBar({ value }: { value: number }) {
   const pct = Math.max(0, Math.min(1, value)) * 100
@@ -30,7 +31,7 @@ export function Probabilities({ probs }: { probs: Record<string, number> }) {
 }
 
 const hasContent = (m: ChatMetadata) =>
-  !!(m.approach || m.data_sources?.length || m.steps?.length || m.confidence != null || m.retrieval?.length || m.table || m.action_executed || m.extra?.probabilities || m.extra?.model)
+  !!(m.approach || m.data_sources?.length || m.steps?.length || m.confidence != null || m.retrieval?.length || m.table || m.action_executed || m.extra?.probabilities || m.extra?.model || (m.language && m.language !== 'en' && m.translation))
 
 /**
  * Collapsible "Response details" for one assistant message. Renders only what the backend sent:
@@ -41,7 +42,7 @@ export function ResponseDetails({ metadata, defaultOpen = false }: { metadata: C
   if (!metadata || !hasContent(metadata)) return null
   const m = metadata
   return (
-    <div className="mt-2 rounded-md border bg-muted/30 text-xs">
+    <div dir="ltr" className="mt-2 rounded-md border bg-muted/30 text-xs">
       <button type="button" aria-expanded={open} onClick={() => setOpen((o) => !o)} className="flex w-full items-center justify-between gap-2 px-3 py-1.5 font-medium text-muted-foreground hover:text-foreground">
         <span className="flex flex-wrap items-center gap-2">
           Response details
@@ -51,6 +52,7 @@ export function ResponseDetails({ metadata, defaultOpen = false }: { metadata: C
       </button>
       {open && (
         <div className="space-y-3 border-t px-3 py-3">
+          <TranslationSection language={m.language} translation={m.translation} />
           {m.approach && <Section title="Approach"><p>{m.approach}</p></Section>}
           {m.confidence != null && (
             <Section title="Confidence">

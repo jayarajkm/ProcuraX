@@ -15,6 +15,7 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 
 class RunIn(BaseModel):
     request: str = Field(min_length=3, max_length=2000)
+    language: str = Field(default="en", max_length=8)
 
 
 class DecisionIn(BaseModel):
@@ -25,7 +26,7 @@ def _detail(db: Session, ex: AgentExecution) -> dict:
     steps = db.scalars(select(AgentExecutionStep).where(AgentExecutionStep.execution_id == ex.id).order_by(AgentExecutionStep.step_index))
     aps = db.scalars(select(AgentApproval).where(AgentApproval.execution_id == ex.id).order_by(AgentApproval.created_at))
     logs = db.scalars(select(AgentExecutionLog).where(AgentExecutionLog.execution_id == ex.id).order_by(AgentExecutionLog.created_at))
-    return {"id": ex.id, "user_request": ex.user_request, "status": ex.status, "plan": ex.plan, "final_result": ex.final_result, "error": ex.error,
+    return {"id": ex.id, "language": ex.language, "user_request": ex.user_request, "status": ex.status, "plan": ex.plan, "final_result": ex.final_result, "error": ex.error,
             "created_at": ex.created_at, "finished_at": ex.finished_at,
             "steps": [{"index": s.step_index, "tool": s.tool_name, "input": s.tool_input, "output": s.tool_output, "status": s.status, "error": s.error} for s in steps],
             "approvals": [{"id": a.id, "summary": a.action_summary, "status": a.status, "comment": a.comment, "decided_by": a.decided_by, "decided_at": a.decided_at} for a in aps],
@@ -46,7 +47,10 @@ def tools(db: Session = Depends(get_db), _: User = Depends(require("agent:run"))
 
 @router.post("/executions", status_code=201)
 def run(body: RunIn, db: Session = Depends(get_db), user: User = Depends(require("agent:run"))):
-    ex = executor.start(db, user, body.request)
+    from app.chatbot import i18n
+    if not i18n.is_valid(body.language):
+        raise AppError("invalid_language", f"Unsupported language '{body.language}'", 422)
+    ex = executor.start(db, user, body.request, body.language)
     audit(db, user, "agent.run", "agent_execution", ex.id, status=ex.status); db.commit()
     return _detail(db, ex)
 

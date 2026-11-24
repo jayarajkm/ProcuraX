@@ -4,7 +4,7 @@ import { api, errorMessage, LLM_TIMEOUT_MS } from '@/lib/api'
 import type {
   AdminAgent, AdminIntent, AdminPolicy, AdminPrompt, AdminProvider, AdminRule, AdminTool, AIAnalytics, AuditEntry, CompareResult, Insights,
   AgentExecution, AgentExecutionSummary, AgentTool, ChatMessage, ChatReply, ChatSession, ChatbotType, ClassifyResult, DocChunk, DocumentRow,
-  MLModel, PendingApproval, SearchResponse, StockoutScan,
+  Language, MLModel, PendingApproval, SearchResponse, StockoutScan,
   Approval, Category, InventoryRow, ListParams, Movement, Overview, Page, PO, PODetail, POCreate, Product, ProductInput,
   ProductUpdate, PurchaseRequest, Recommendation, RequestCreate, Supplier, SupplierInput, SupplierPerformance,
   SupplierProduct, SupplierUpdate, Warehouse,
@@ -122,6 +122,8 @@ export const useConvertRequest = () =>
 
 
 // ===================== AI: chatbots =====================
+export const useLanguages = () =>
+  useQuery({ queryKey: ['languages'], queryFn: () => api.get<Language[]>('/languages'), staleTime: 60 * 60_000 })
 export const useChatbots = () => useQuery({ queryKey: ['chatbots'], queryFn: () => api.get<ChatbotType[]>('/chatbots') })
 export const useChatbot = (slug?: string) =>
   useQuery({ queryKey: ['chatbot', slug], queryFn: () => api.get<ChatbotType>(`/chatbots/${slug}`), enabled: !!slug })
@@ -131,8 +133,8 @@ export const fetchChatMessages = (sid: string) => api.get<ChatMessage[]>(`/chat-
 /** No success toast; the thread itself is the feedback. Errors are shown inline by the caller. */
 export function useSendChat(slug: string) {
   const qc = useQueryClient()
-  return useMutation<ChatReply, Error, { message: string; session_id?: string | null }>({
-    mutationFn: (v) => api.post<ChatReply>(`/chatbots/${slug}/chat`, { message: v.message, ...(v.session_id ? { session_id: v.session_id } : {}) }, { timeoutMs: LLM_TIMEOUT_MS }),
+  return useMutation<ChatReply, Error, { message: string; session_id?: string | null; language?: string }>({
+    mutationFn: (v) => api.post<ChatReply>(`/chatbots/${slug}/chat`, { message: v.message, ...(v.session_id ? { session_id: v.session_id } : {}), language: v.language ?? 'en' }, { timeoutMs: LLM_TIMEOUT_MS }),
     onSuccess: () => { void qc.invalidateQueries({ queryKey: ['chat-sessions', slug] }); void qc.invalidateQueries({ queryKey: ['agent-executions'] }) },
     onError: (e) => { toast.error(errorMessage(e)) },
   })
@@ -178,8 +180,8 @@ export const usePendingApprovals = (enabled: boolean) =>
   useQuery({ queryKey: ['agent-approvals'], queryFn: () => api.get<PendingApproval[]>('/agent/approvals'), enabled })
 export function useRunAgent() {
   const qc = useQueryClient()
-  return useMutation<AgentExecution, Error, string>({
-    mutationFn: (request) => api.post<AgentExecution>('/agent/executions', { request }, { timeoutMs: LLM_TIMEOUT_MS }),
+  return useMutation<AgentExecution, Error, { request: string; language?: string }>({
+    mutationFn: (v) => api.post<AgentExecution>('/agent/executions', { request: v.request, language: v.language ?? 'en' }, { timeoutMs: LLM_TIMEOUT_MS }),
     onSuccess: () => { agentKeys.forEach((k) => void qc.invalidateQueries({ queryKey: k })) },
     onError: (e) => { toast.error(errorMessage(e)); void qc.invalidateQueries({ queryKey: ['agent-executions'] }) },
   })
@@ -204,10 +206,10 @@ export const useTrainModels = () =>
 
 // ===================== comparison =====================
 /** One stateless bot run for the comparison page. Never throws: transport failures become an `error` result so one card cannot break the others. */
-export async function compareBot(slug: string, message: string): Promise<CompareResult> {
+export async function compareBot(slug: string, message: string, language = 'en'): Promise<CompareResult> {
   const t = performance.now()
   try {
-    return await api.post<CompareResult>(`/compare/${slug}`, { message }, { timeoutMs: LLM_TIMEOUT_MS })
+    return await api.post<CompareResult>(`/compare/${slug}`, { message, language }, { timeoutMs: LLM_TIMEOUT_MS })
   } catch (e) {
     return { slug, status: 'error', message: errorMessage(e), duration_ms: Math.round(performance.now() - t) }
   }

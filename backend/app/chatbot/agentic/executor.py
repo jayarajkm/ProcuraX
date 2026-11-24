@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.chatbot.generative.provider import ProviderError, ProviderNotConfigured, deadline_var, get_provider
+from app.chatbot import i18n
 from app.core.errors import AppError, NotFound
 from app.models import (AgentApproval, AgentDefinition, AgentExecution, AgentExecutionLog, AgentExecutionStep, PromptTemplate, User)
 from app.tools import registry as T
@@ -33,9 +34,10 @@ def _json(text: str) -> dict:
     return json.loads(m.group(0))
 
 
-def _system(db) -> str:
+def _system(db, language: str = "en") -> str:
     base = db.scalar(select(PromptTemplate.template).where(PromptTemplate.name == "agent_planner")) or ""
-    return base + "\n\n" + PROTOCOL + "\n".join(_compact(s) for s in T.specs())
+    return base + "\n\n" + PROTOCOL + "\n".join(_compact(s) for s in T.specs()) + (
+        f"\n\nLANGUAGE: Write the text of the \"final\" answer in {i18n.language_name(language)}. Everything else (JSON keys, tool names, tool arguments, plan steps) stays in English." if language != "en" else "")
 
 
 def _compact(spec: dict) -> str:
@@ -59,9 +61,9 @@ def _fail(db, ex, status, msg):
     _log(db, ex, msg, "error"); db.flush()
 
 
-def start(db: Session, user: User, request: str) -> AgentExecution:
+def start(db: Session, user: User, request: str, language: str = "en") -> AgentExecution:
     agent = db.scalar(select(AgentDefinition).where(AgentDefinition.name == "procurement_agent"))
-    ex = AgentExecution(agent_id=agent.id, user_id=user.id, user_request=request, status="running")
+    ex = AgentExecution(agent_id=agent.id, user_id=user.id, user_request=request, status="running", language=language)
     db.add(ex); db.flush()
     T.sync_registry(db)
     _log(db, ex, f"Execution started by {user.email}")
@@ -95,7 +97,7 @@ def run_loop(db: Session, ex: AgentExecution, user: User) -> AgentExecution:
         if time.time() - started > agent.timeout_seconds:
             _fail(db, ex, "timed_out", f"Stopped: exceeded the {agent.timeout_seconds}s execution timeout"); return ex
         try:
-            r = provider.complete(_system(db), _messages(ex, steps), max_tokens=800)
+            r = provider.complete(_system(db, ex.language), _messages(ex, steps), max_tokens=800)
             d = _json(r.text)
         except (ProviderError, ValueError, json.JSONDecodeError) as e:
             consecutive_errors += 1

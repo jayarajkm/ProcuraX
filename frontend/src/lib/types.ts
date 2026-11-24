@@ -96,7 +96,22 @@ export interface ChatSession { id: string; title: string; created_at: string }
 export interface Citation {
   ref?: number; document?: string; document_id?: string; page?: number | null; chunk_index?: number; similarity?: number; excerpt?: string
 }
+/** Response language (GET /languages). */
+export interface Language { code: string; name: string; native_name: string; rtl: boolean }
+export type TranslationMode = 'llm_native' | 'deterministic_bot_with_llm_translation'
+/** Present on replies when language != en. Every key is optional: render only what exists. */
+export interface Translation {
+  mode?: TranslationMode | string
+  input_translated_to_english?: string
+  original_reply?: string
+  not_translated?: string[]
+  note?: string
+  input_translation_error?: string
+  output_translation_error?: string
+}
 export interface ChatMetadata {
+  language?: string
+  translation?: Translation | null
   approach?: string
   data_sources?: string[]
   steps?: string[]
@@ -125,12 +140,12 @@ export interface SearchResponse { query: string; results: SearchHit[] }
 
 // ---- agent ----
 export interface AgentTool { name: string; description: string; input_schema: Record<string, unknown>; required_permission: string | null; sensitive: boolean }
-export interface AgentExecutionSummary { id: string; user_request: string; status: string; created_at: string }
+export interface AgentExecutionSummary { id: string; language?: string; user_request: string; status: string; created_at: string }
 export interface AgentStep { index: number; tool: string; input: unknown; output: unknown; status: string; error: string | null }
 export interface AgentApproval { id: string; summary: string; status: string; comment: string | null; decided_by: string | null; decided_at: string | null }
 export interface AgentLog { level: string; message: string; at: string }
 export interface AgentExecution {
-  id: string; user_request: string; status: string; plan: string[] | null; final_result: string | null; error: string | null
+  id: string; language?: string; user_request: string; status: string; plan: string[] | null; final_result: string | null; error: string | null
   created_at: string; finished_at: string | null; steps: AgentStep[]; approvals: AgentApproval[]; logs: AgentLog[]
 }
 export interface PendingApproval { id: string; execution_id: string; summary: string; created_at: string }
@@ -166,6 +181,7 @@ export interface CompareResult {
   confidence?: number | null; confidence_kind?: string | null
   retrieval?: Citation[]; action_executed?: boolean; table?: { columns: string[]; rows: unknown[][] }
   extra?: ChatMetadata['extra']
+  language?: string; translation?: Translation | null
 }
 
 // ---- insights ----

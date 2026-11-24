@@ -13,10 +13,13 @@ class ChatResult:
     confidence_kind: str | None = None  # what the confidence means
     retrieval: list[dict] | None = None
     action_executed: bool = False
+    language: str | None = None          # selected response language (None = English/default)
+    translation: dict | None = None      # how translation was applied (disclosed to the user)
+    status: str = "ok"                  # ok | not_configured | provider_error (explicit, so callers never parse reply text)
     table: dict | None = None           # {"columns": [...], "rows": [[...]]}
     extra: dict[str, Any] = field(default_factory=dict)
 
     def meta(self) -> dict:
-        d = {k: v for k, v in self.__dict__.items() if k != "reply" and v not in (None, [], {})}
+        d = {k: v for k, v in self.__dict__.items() if k not in ("reply", "status") and v not in (None, [], {})}
         d["action_executed"] = self.action_executed
         return d

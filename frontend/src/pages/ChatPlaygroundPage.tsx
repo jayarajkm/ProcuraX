@@ -5,6 +5,8 @@ import { toast } from 'sonner'
 import { ApprovalCallout } from '@/components/chat/ApprovalCallout'
 import { botStyle } from '@/components/chat/chatbotStyles'
 import { ResponseDetails } from '@/components/chat/ResponseDetails'
+import { TranslationNotice } from '@/components/chat/TranslationInfo'
+import { LanguageSelect } from '@/components/LanguageSelect'
 import { RichText } from '@/components/chat/RichText'
 import { ErrorState } from '@/components/ErrorState'
 import { DetailSkeleton } from '@/components/Skeletons'
@@ -12,6 +14,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/input'
 import { errorMessage } from '@/lib/api'
+import { useLanguage } from '@/hooks/useLanguage'
 import { fetchChatMessages, useChatbot, useChatSessions, useSendChat } from '@/hooks/api'
 import { fmtDateTime } from '@/lib/format'
 import type { ChatMetadata } from '@/lib/types'
@@ -41,6 +44,7 @@ function Playground({ slug }: { slug: string }) {
   const bot = useChatbot(slug)
   const sessions = useChatSessions(slug)
   const send = useSendChat(slug)
+  const lang = useLanguage()
   const [params] = useSearchParams()
   const [input, setInput] = useState(params.get('q') ?? '')
   const [msgs, setMsgs] = useState<Msg[]>([])
@@ -55,10 +59,10 @@ function Playground({ slug }: { slug: string }) {
 
   const submit = (text: string) => {
     const message = text.trim()
-    if (!message || send.isPending) return
+    if (!message || send.isPending || lang.isLoading) return
     setError(null); setLastSent(message); setInput('')
     setMsgs((m) => [...m, { key: `u${seq.current++}`, role: 'user', content: message }])
-    send.mutate({ message, session_id: sessionId }, {
+    send.mutate({ message, session_id: sessionId, language: lang.code }, {
       onSuccess: (r) => {
         setSessionId(r.session_id)
         setMsgs((m) => [...m, { key: r.message_id, role: 'assistant', content: r.reply, metadata: r.metadata }])
@@ -84,6 +88,9 @@ function Playground({ slug }: { slug: string }) {
   const s = botStyle(b.slug)
   const Icon = s.icon
   const disabled = !b.available || (b.requires_llm && !b.configured)
+  const hint = lang.code === 'en' ? null
+    : b.requires_llm ? `The LLM answers in ${lang.language.name}`
+    : 'Answers are produced in English by the deterministic bot and translated by the LLM (requires a configured LLM provider)'
 
   return (
     <div className="flex flex-col gap-4">
@@ -95,7 +102,10 @@ function Playground({ slug }: { slug: string }) {
               <div className={cn('rounded-lg p-2.5', s.bg, s.text)}><Icon className="h-6 w-6" /></div>
               <div><h1 className="text-xl font-semibold">{b.name}</h1><p className="text-sm text-muted-foreground">{b.description}</p></div>
             </div>
-            <BotAvailability bot={b} />
+            <div className="flex flex-col items-start gap-2 sm:items-end">
+              <BotAvailability bot={b} />
+              <LanguageSelect disabled={send.isPending} />
+            </div>
           </div>
           <details className="mt-3 rounded-md bg-muted/40 p-3 text-sm" open>
             <summary className="flex cursor-pointer items-center gap-1.5 font-medium"><Info className="h-4 w-4" />How it works</summary>
@@ -103,6 +113,7 @@ function Playground({ slug }: { slug: string }) {
             <div className="mt-2 flex flex-wrap gap-1.5">{b.use_cases.map((u) => <span key={u} className={cn('rounded-full px-2 py-0.5 text-xs', s.bg, s.text)}>{u}</span>)}</div>
           </details>
           <div className="mt-3"><LlmNotice bot={b} /></div>
+          {hint && <p className="mt-2 text-xs text-muted-foreground" data-testid="language-hint">{hint}</p>}
         </Card>
       </div>
 
@@ -139,8 +150,8 @@ function Playground({ slug }: { slug: string }) {
             ) : msgs.map((m) => (
               <div key={m.key} className={cn('flex', m.role === 'user' ? 'justify-end' : 'justify-start')}>
                 <div className={cn('max-w-[90%] rounded-lg px-3.5 py-2.5 text-sm', m.role === 'user' ? 'bg-primary text-primary-foreground' : 'border bg-card')}>
-                  <div className="break-words"><RichText text={m.content} /></div>
-                  {m.role === 'assistant' && m.metadata && <><ApprovalCallout metadata={m.metadata} /><ResponseDetails metadata={m.metadata} /></>}
+                  {(() => { const rtl = m.role === 'assistant' && lang.isRtl(m.metadata?.language); return <div className={cn('break-words', rtl && 'text-right')} dir={rtl ? 'rtl' : undefined}><RichText text={m.content} /></div> })()}
+                  {m.role === 'assistant' && m.metadata && <><ApprovalCallout metadata={m.metadata} /><TranslationNotice language={m.metadata.language} translation={m.metadata.translation} /><ResponseDetails metadata={m.metadata} /></>}
                 </div>
               </div>
             ))}
@@ -154,11 +165,11 @@ function Playground({ slug }: { slug: string }) {
             <div ref={endRef} />
           </div>
           <form className="flex items-end gap-2 border-t p-3" onSubmit={(e) => { e.preventDefault(); submit(input) }}>
-            <Textarea aria-label="Message" className="min-h-[44px] flex-1 resize-none" rows={2} maxLength={2000} value={input} disabled={disabled}
+            <Textarea aria-label="Message" dir={lang.rtl ? 'rtl' : undefined} className={cn('min-h-[44px] flex-1 resize-none', lang.rtl && 'text-right')} rows={2} maxLength={2000} value={input} disabled={disabled}
               placeholder={disabled ? 'This chatbot is not available' : 'Type your message… (Enter to send, Shift+Enter for a new line)'}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit(input) } }} />
-            <Button type="submit" disabled={disabled || send.isPending || !input.trim()}><Send className="h-4 w-4" />Send</Button>
+            <Button type="submit" disabled={disabled || send.isPending || lang.isLoading || !input.trim()}><Send className="h-4 w-4" />Send</Button>
           </form>
         </Card>
       </div>

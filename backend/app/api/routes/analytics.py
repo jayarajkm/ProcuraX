@@ -16,6 +16,7 @@ BOTS = ["rule_based", "nlp", "ml", "generative", "rag", "agentic"]
 
 class CompareIn(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
+    language: str = Field(default="en", max_length=8)
 
 
 @router.post("/compare/{slug}")
@@ -27,11 +28,8 @@ def compare_one(slug: str, body: CompareIn, db: Session = Depends(get_db), user:
         return {"slug": slug, "status": "forbidden", "message": "Your role cannot run the agent.", "duration_ms": 0}
     t = time.perf_counter()
     try:
-        res = chat_svc.run_bot(db, slug, body.message, user=user)
-        status = "ok"
-        low = res.reply.lower()
-        if "no llm provider is configured" in low or "provider returned an error" in low:
-            status = "not_configured" if "no llm provider" in low else "provider_error"
+        res = chat_svc.run_bot(db, slug, body.message, user=user, language=body.language)
+        status = res.status
     except Exception as e:  # one bot failing must never break the comparison
         db.rollback()
         return {"slug": slug, "status": "error", "message": f"{type(e).__name__}: {str(e)[:200]}", "duration_ms": int((time.perf_counter() - t) * 1000)}

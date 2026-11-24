@@ -1,6 +1,8 @@
 import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
+from app.chatbot import i18n
+from app.chatbot.generative.provider import ProviderError, ProviderNotConfigured
 from app.chatbot.types import ChatResult
 from app.core.errors import AppError, NotFound
 from app.models import ChatbotMessage, ChatbotSession, ChatbotType, User
@@ -24,12 +26,50 @@ def _handler(slug: str):
     return answer
 
 
-def run_bot(db: Session, slug: str, message: str, user: User | None = None, history: list[dict] | None = None) -> ChatResult:
+def run_with_language(db: Session, slug: str, message: str, user: User | None, history: list[dict] | None, language: str) -> ChatResult:
+    h = _handler(slug)
+    if not i18n.is_valid(language):
+        raise AppError("invalid_language", f"Unsupported language '{language}'", 422)
+    if language == "en":
+        return h(db, message, history=history, user=user)
+    name = i18n.language_name(language)
+    if slug == "agentic":  # the agent reasons in any language; only its user-facing final answer is localised, tool protocol stays English
+        res = h(db, message, history=history, user=user, language=language)
+        res.language, res.translation = language, {"mode": "llm_native", "note": "Final answer written in the selected language; tool calls, plan and audit logs stay English."}
+        return res
+    notes: dict = {}
+    try:
+        english = i18n.translate(message, "English")
+        notes["input_translated_to_english"] = english
+    except (ProviderNotConfigured, ProviderError) as e:
+        english = None
+        notes["input_translation_error"] = str(e)[:300]
+    q = english or message
+    if slug in ("generative", "rag"):  # LLM bots answer natively; the English query only drives fact selection / retrieval
+        res = h(db, message, history=history, user=user, language=language, english_query=q)
+        notes["mode"] = "llm_native"
+        if slug == "rag":
+            notes["note"] = "Retrieval uses the English translation of your question (embeddings are English); the answer is written in the selected language. Source excerpts stay in the original document language."
+    else:  # rule_based / nlp / ml: deterministic engine in English + LLM translation of the reply
+        res = h(db, q, history=history, user=user)
+        notes["mode"] = "deterministic_bot_with_llm_translation"
+        notes["original_reply"] = res.reply
+        notes["not_translated"] = ["table", "approach", "steps", "data_sources"]
+        try:
+            res.reply = i18n.translate(res.reply, name)
+        except (ProviderNotConfigured, ProviderError) as e:
+            notes["output_translation_error"] = str(e)[:300]
+            res.reply = f"{res.reply}\n\n(Translation to {name} unavailable: {e}. Showing the English answer.)"
+    res.language, res.translation = language, notes
+    return res
+
+
+def run_bot(db: Session, slug: str, message: str, user: User | None = None, history: list[dict] | None = None, language: str = "en") -> ChatResult:
     """Stateless dispatch (used by chat and the comparison feature)."""
-    return _handler(slug)(db, message, history=history, user=user)
+    return run_with_language(db, slug, message, user, history, language)
 
 
-def chat(db: Session, user: User, slug: str, message: str, session_id: uuid.UUID | None) -> dict:
+def chat(db: Session, user: User, slug: str, message: str, session_id: uuid.UUID | None, language: str = "en") -> dict:
     t = db.scalar(select(ChatbotType).where(ChatbotType.slug == slug))
     if not t:
         raise NotFound("Chatbot")
@@ -45,7 +85,7 @@ def chat(db: Session, user: User, slug: str, message: str, session_id: uuid.UUID
         select(ChatbotMessage).where(ChatbotMessage.session_id == s.id).order_by(ChatbotMessage.created_at))]
     db.add(ChatbotMessage(session_id=s.id, role="user", content=message))
     db.flush()
-    res = handler(db, message, history=prior, user=user)
+    res = run_with_language(db, slug, message, user, prior, language)
     m = ChatbotMessage(session_id=s.id, role="assistant", content=res.reply, meta=res.meta())
     db.add(m); db.flush()
     return {"session_id": s.id, "message_id": m.id, "reply": res.reply, "metadata": m.meta}

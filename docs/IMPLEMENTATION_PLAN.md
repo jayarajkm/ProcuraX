@@ -9,7 +9,7 @@ Status legend: [ ] todo, [~] in progress, [x] done
 - [x] Phase 4 — Rule-based, NLP, ML (train + evaluate)
 - [x] Phase 5 (LLM path untested against real API) — LLM provider, chat history, RAG
 - [x] Phase 6 backend (tested with scripted provider) — Agent tools, planner, approvals
-- [ ] Phase 7 — Comparison, ML eval page, analytics
-- [ ] Phase 8 — Deployment (requires explicit approval before any paid resource)
+- [x] Phase 7 — comparison, AI analytics, insights, admin (UI not browser-tested)
+- [~] Phase 8 — prod config + scripts built and tested locally; real droplet/DNS/HTTPS NOT done (needs approval)
 
 Rule: a phase is complete only when its tests pass and its docs are updated.

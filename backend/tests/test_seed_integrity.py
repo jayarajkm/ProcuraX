@@ -10,7 +10,7 @@ def count(db, model):
 
 def test_health(db):
     h = check_database(db)
-    assert h["pgvector"] and h["migration"] == "0001"
+    assert h["pgvector"] and h["migration"] == "0002"
 
 
 def test_target_counts(db):

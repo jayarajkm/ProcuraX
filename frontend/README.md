@@ -53,6 +53,18 @@ Notes
 - ML caveats and `training_stock_source` are always rendered (they describe synthetic-data limits). If the registry row has none, a generic synthetic-data notice is shown instead.
 - The agent can never approve anything: the UI states this, and approval controls are shown only to users with `agent:approve`.
 - Upload client limit (`MAX_UPLOAD_MB` in `src/pages/documentRules.ts`) mirrors the server default of 20 MB; the server is authoritative and its 422 message is shown inline.
-- Chatbot Comparison and AI Administration remain honest placeholders (planned for the next build phase).
 
-Chatbot Comparison and AI Administration are honest placeholders (next build phase).
+## Comparison, administration, analytics, insights
+| Route | Page | Backend | Permissions |
+|---|---|---|---|
+| `/compare` | Chatbot Comparison: one question, up to six parallel `POST /compare/{slug}` calls (LLM timeout), a card per bot that fills in as its own request returns (spinner + elapsed timer), per-bot include checkboxes, example chips, summary table | `POST /compare/{slug}` | `chat:use` (agent card shows "forbidden" without `agent:run`) |
+| `/admin` | AI Administration, tabs: Providers, Policy values, Rules, Intents (read-only), Prompts, Agent & Tools, Audit log, AI Analytics | `/admin/*`, `/analytics/ai` | `admin:manage`; others see an "Administrator only" card and no admin request is made |
+| `/ai-analytics` | AI Analytics (sidebar item next to ML Models, so non-admins with `ml:read` can reach it; also a tab in `/admin`) | `GET /analytics/ai?days=` | `ml:read` |
+| `/overview` | "Insights" panel: deterministic rule insights (severity, detail, source, link) plus an opt-in "Generate narrative summary" button | `GET /dashboard/insights[?narrative=true]` | `product:read` |
+
+Notes
+- Comparison cards render only what each bot returned. Confidence is shown only when present, with its `confidence_kind`; bots without one say "no confidence score produced by this technique" and the summary table shows a dash. An agent result with `extra.execution_status === 'awaiting_approval'` is labelled "Prepared, awaiting human approval — nothing executed" with a link to `/agent`. `not_configured` is shown as an informational note, `error`/`provider_error` as a red alert, `forbidden` muted. A transport failure or the 170s client timeout becomes an `error` card (the server may still have run the agent: check Agent Workspace).
+- Admin edits are never optimistic: each mutation invalidates its query (and `admin-audit`) and toasts, and API messages (409 key missing, 422 validation) are shown inline. Making a provider the default and disabling a tool ask for confirmation. API keys are never shown or entered; the UI states they live only in the server environment. "Make default" is disabled when `key_configured` is false.
+- The narrative summary calls an LLM only when the button is clicked (a mutation, not a query). If `narrative.text` is null, `narrative.reason` is shown as a muted setup notice.
+- The nav path for the comparison page is `/compare` and for administration `/admin` (earlier placeholders used `/chatbot-comparison` and `/ai-admin`).
+- Tests: `src/test/phase3.test.tsx` (mocked fetch) covers card states, summary confidence, parallel calls, admin gating, make-default, tool/policy/agent-limit flows, analytics gating, insights fallback. The live smoke test also mounts Overview insights (no narrative), AI Analytics and the idle comparison page; it never calls PATCH or LLM bots.

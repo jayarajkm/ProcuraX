@@ -31,6 +31,7 @@ class AgentExecution(IdMixin, TimestampMixin, Base):
     user_request: Mapped[str] = mapped_column(Text)
     plan: Mapped[list] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(30), default="running", index=True)  # running|awaiting_approval|completed|failed|rejected|timed_out
+    language: Mapped[str] = mapped_column(String(8), default="en", server_default="en")
     final_result: Mapped[str | None] = mapped_column(Text)
     error: Mapped[str | None] = mapped_column(Text)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

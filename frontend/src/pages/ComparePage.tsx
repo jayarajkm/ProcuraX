@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/input'
 import { compareBot } from '@/hooks/api'
+import { LanguageSelect } from '@/components/LanguageSelect'
+import { useLanguage } from '@/hooks/useLanguage'
 import { COMPARE_BOTS } from '@/lib/types'
 import { botStyle } from '@/components/chat/chatbotStyles'
 
@@ -20,18 +22,19 @@ export function ComparePage() {
   const [included, setIncluded] = useState<Record<string, boolean>>(() => Object.fromEntries(COMPARE_BOTS.map((s) => [s, true])))
   const [runs, setRuns] = useState<Runs>(idle)
   const runId = useRef(0)
+  const lang = useLanguage()
   const running = Object.values(runs).some((r) => r.phase === 'running')
   const chosen = COMPARE_BOTS.filter((s) => included[s])
 
   const start = (q = question) => {
     const message = q.trim()
-    if (!message || chosen.length === 0 || running) return
+    if (!message || chosen.length === 0 || running || lang.isLoading) return
     const id = ++runId.current
     const startedAt = Date.now()
     setRuns(Object.fromEntries(COMPARE_BOTS.map((s) => [s, chosen.includes(s) ? { phase: 'running', startedAt } : { phase: 'idle' }])) as Runs)
     // Independent, parallel requests: each card fills in as its own request returns.
     chosen.forEach((slug) => {
-      void compareBot(slug, message).then((result) => {
+      void compareBot(slug, message, lang.code).then((result) => {
         if (runId.current !== id) return
         setRuns((cur) => ({ ...cur, [slug]: { phase: 'done', startedAt, result } }))
       })
@@ -56,6 +59,10 @@ export function ComparePage() {
               <button key={ex} type="button" disabled={running} onClick={() => setQuestion(ex)} className="rounded-full border bg-card px-3 py-1 text-xs hover:bg-muted disabled:opacity-50">{ex}</button>
             ))}
           </div>
+          <div className="flex flex-wrap items-end gap-3">
+            <LanguageSelect id="compare-language" label="Response language (applies to all bots)" disabled={running} />
+            {lang.code !== 'en' && <p className="max-w-xl text-xs text-muted-foreground">LLM bots answer directly in {lang.language.name}. Rule-based, NLP and ML bots answer in English and the LLM translates the reply (requires a configured LLM provider; without one you get English plus a notice).</p>}
+          </div>
           <fieldset className="flex flex-wrap gap-x-4 gap-y-2">
             <legend className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">Bots to include</legend>
             {COMPARE_BOTS.map((s) => (
@@ -67,7 +74,7 @@ export function ComparePage() {
             ))}
           </fieldset>
           <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={() => start()} disabled={!question.trim() || chosen.length === 0 || running}>
+            <Button onClick={() => start()} disabled={!question.trim() || chosen.length === 0 || running || lang.isLoading}>
               {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{running ? 'Running…' : `Compare ${chosen.length} bot${chosen.length === 1 ? '' : 's'}`}
             </Button>
             {chosen.length === 0 && <span className="text-xs text-muted-foreground">Select at least one bot.</span>}

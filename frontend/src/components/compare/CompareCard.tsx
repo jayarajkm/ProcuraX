@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom'
 import { SimilarityBar } from '@/components/chat/ResponseDetails'
 import { botStyle } from '@/components/chat/chatbotStyles'
 import { RichText } from '@/components/chat/RichText'
+import { TranslationDisclosure } from '@/components/chat/TranslationInfo'
+import { useLanguageInfo } from '@/hooks/useLanguage'
 import { Badge } from '@/components/ui/badge'
 import type { CompareResult } from '@/lib/types'
 import { cn } from '@/lib/utils'
@@ -48,6 +50,16 @@ function Steps({ steps }: { steps: string[] }) {
   )
 }
 
+function Reply({ slug, text, language }: { slug: string; text: string; language?: string }) {
+  return language && language !== 'en' ? <RtlReply slug={slug} text={text} language={language} /> : <ReplyBox slug={slug} text={text} />
+}
+function RtlReply({ slug, text, language }: { slug: string; text: string; language: string }) {
+  return <ReplyBox slug={slug} text={text} rtl={useLanguageInfo().isRtl(language)} />
+}
+function ReplyBox({ slug, text, rtl }: { slug: string; text: string; rtl?: boolean }) {
+  return <div className={cn('rounded-md bg-muted/40 p-3 leading-relaxed', rtl && 'text-right')} dir={rtl ? 'rtl' : undefined} data-testid={`reply-${slug}`}><RichText text={text} /></div>
+}
+
 export function CompareCard({ slug, name, run }: { slug: string; name?: string; run: BotRun }) {
   const st = botStyle(slug)
   const Icon = st.icon
@@ -90,7 +102,8 @@ export function CompareCard({ slug, name, run }: { slug: string; name?: string; 
 
       {run.phase === 'done' && ok && r && (
         <>
-          <div className="rounded-md bg-muted/40 p-3 leading-relaxed" data-testid={`reply-${slug}`}><RichText text={r.reply ?? ''} /></div>
+          <Reply slug={slug} text={r.reply ?? ''} language={r.language} />
+          <TranslationDisclosure language={r.language} translation={r.translation} />
 
           {awaiting ? (
             <div role="status" className="rounded-md border-2 border-amber-300 bg-amber-50 p-3 text-amber-900">

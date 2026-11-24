@@ -3,6 +3,7 @@ import re
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.chatbot.generative.provider import ProviderError, ProviderNotConfigured, get_provider
+from app.chatbot import i18n
 from app.chatbot.types import ChatResult
 from app.models import PromptTemplate, Supplier
 from app.services import dashboard, queries as q
@@ -34,19 +35,19 @@ def build_facts(db: Session, message: str) -> tuple[str, list[str]]:
     return "\n".join(parts), sorted(set(sources))
 
 
-def answer(db: Session, message: str, history: list[dict] | None = None, **_) -> ChatResult:
+def answer(db: Session, message: str, history: list[dict] | None = None, language: str = "en", english_query: str | None = None, **_) -> ChatResult:
     try:
         provider = get_provider()
     except ProviderNotConfigured as e:
-        return ChatResult(reply=str(e), approach="Generative AI: provider not configured", data_sources=[], steps=["No LLM call was made"])
-    facts, sources = build_facts(db, message)
+        return ChatResult(reply=str(e), approach="Generative AI: provider not configured", data_sources=[], steps=["No LLM call was made"], status="not_configured")
+    facts, sources = build_facts(db, english_query or message)
     tmpl = db.scalar(select(PromptTemplate.template).where(PromptTemplate.name == "generative_system"))
-    system = f"{tmpl}\n\nDATABASE FACTS (synthetic demo data):\n{facts}"
+    system = f"{tmpl}\n\nDATABASE FACTS (synthetic demo data):\n{facts}" + i18n.instruction(language)
     msgs = [{"role": m["role"], "content": m["content"]} for m in (history or [])[-10:]] + [{"role": "user", "content": message}]
     try:
         r = provider.complete(system, msgs, max_tokens=900)
     except ProviderError as e:
-        return ChatResult(reply=f"The LLM provider returned an error: {e}", approach="Generative AI: provider error", data_sources=sources)
+        return ChatResult(reply=f"The LLM provider returned an error: {e}", approach="Generative AI: provider error", data_sources=sources, status="provider_error")
     return ChatResult(reply=r.text, approach=f"LLM ({provider.name}:{r.model}) with database facts + conversation history", data_sources=sources,
                       steps=["Collected relevant facts from the database via read-only services", f"Sent {len(msgs)} message(s) plus facts to the LLM"],
                       extra={"model": r.model, "input_tokens": r.input_tokens, "output_tokens": r.output_tokens})
