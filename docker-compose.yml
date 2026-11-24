@@ -1,0 +1,45 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [internal]
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+    volumes:
+      - ./backend:/app
+      - uploads:/data/uploads
+      - models:/data/models
+    ports:
+      - "127.0.0.1:8000:8000"   # dev only; production exposes via nginx
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks: [internal]
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+    volumes:
+      - ./backend:/app
+      - uploads:/data/uploads
+      - models:/data/models
+    command: python -m app.workers.runner
+    networks: [internal]
+volumes:
+  pgdata:
+  uploads:
+  models:
+networks:
+  internal:
