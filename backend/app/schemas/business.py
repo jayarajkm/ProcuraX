@@ -57,6 +57,8 @@ class SupplierProductOut(BaseModel):
 
 class WarehouseOut(ORM):
     id: uuid.UUID; code: str; name: str; location: str
+    ownership_type: str = "self"; owner_name: str = "Own stock"
+    owner_supplier_id: uuid.UUID | None = None; owner_customer_id: uuid.UUID | None = None
 
 
 class InventoryOut(BaseModel):
@@ -93,7 +95,7 @@ class POHistoryOut(ORM):
 class POOut(ORM):
     id: uuid.UUID; po_number: str; supplier_id: uuid.UUID; supplier_name: str; warehouse_id: uuid.UUID; warehouse_name: str; status: str; order_date: date
     expected_delivery_date: date; actual_delivery_date: date | None; subtotal: Decimal; tax_amount: Decimal
-    total_amount: Decimal
+    total_amount: Decimal; order_type: str = "standard"
 
 
 class PODetail(POOut):
@@ -138,3 +140,32 @@ class DecisionIn(BaseModel):
 
 class ApprovalHistoryOut(ORM):
     action: str; actor_id: uuid.UUID | None; actor_name: str | None; comment: str; acted_at: datetime
+
+
+# ---- distribution: customers, price breaks, quotes, replenishment
+class CustomerOut(ORM):
+    id: uuid.UUID; code: str; name: str; segment: str; contact_person: str; email: str; is_active: bool
+
+
+class CustomerCreate(BaseModel):
+    code: str = Field(min_length=1, max_length=20); name: str = Field(min_length=1, max_length=200)
+    segment: str = Field(default="standard", pattern="^(standard|contract|key_account)$")
+    contact_person: str = ""; email: str = ""
+
+
+class BreakIn(BaseModel):
+    min_qty: int = Field(ge=1); unit_price: Decimal = Field(ge=0)
+
+
+class BreaksIn(BaseModel):
+    breaks: list[BreakIn] = Field(max_length=12)
+
+
+class BreakOut(BaseModel):
+    min_qty: int; unit_price: Decimal
+
+
+class ShortageCreate(BaseModel):
+    warehouse_id: uuid.UUID
+    product_ids: list[uuid.UUID] | None = None
+    take_price_breaks: bool = False

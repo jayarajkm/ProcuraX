@@ -46,7 +46,11 @@ async def upload(file: UploadFile = File(...), title: str | None = Form(None), c
 @router.get("/search")
 def search(q: str = Query(min_length=2), top_k: int = Query(5, ge=1, le=20), min_similarity: float = Query(0.3, ge=0, le=1), category: str | None = None,
            db: Session = Depends(get_db), _: User = Depends(require("document:read"))):
-    hits = svc.search_chunks(db, q, top_k, min_similarity, category)
+    from app.ingestion.embeddings import EmbeddingError
+    try:
+        hits = svc.search_chunks(db, q, top_k, min_similarity, category)
+    except EmbeddingError as e:
+        raise AppError("embedding_unavailable", str(e), 503)
     return {"query": q, "results": [{**h, "document_id": h["document_id"]} for h in hits]}
 
 

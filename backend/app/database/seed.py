@@ -13,6 +13,7 @@ from app.models import Organization
 from app.database.seeding.reference import seed_reference
 from app.database.seeding.business import seed_business
 from app.database.seeding.documents import seed_documents
+from app.database.seeding.distribution import seed_distribution
 
 
 def reset(db):
@@ -32,6 +33,7 @@ def run(reset_first: bool = False) -> dict:
         db.add(org); db.flush()
         ref = seed_reference(db, org)
         stats = seed_business(db, org, ref, s.seed)
+        stats["distribution"] = seed_distribution(db, org, s.seed)
         stats["documents"] = seed_documents(db, org, ref["users"]["Administrator"].id, s.upload_dir)
         db.commit()
         return stats
@@ -40,4 +42,13 @@ def run(reset_first: bool = False) -> dict:
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--reset", action="store_true", help="truncate all tables first (destructive)")
-    print(run(ap.parse_args().reset))
+    ap.add_argument("--distribution", action="store_true", help="add the distributor layer (customers, ownership, price breaks) to an existing demo database")
+    a = ap.parse_args()
+    if a.distribution:
+        with SessionLocal() as db:
+            org = db.scalar(select(Organization).limit(1))
+            if not org:
+                raise SystemExit("No organization found; seed the database first.")
+            print(seed_distribution(db, org, get_settings().seed)); db.commit()
+    else:
+        print(run(a.reset))

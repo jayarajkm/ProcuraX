@@ -73,7 +73,7 @@ def seed_business(db: Session, org: Organization, ref: dict, seed: int, today: d
                 continue
             used.add(nm); n += 1; made += 1
             price = q2(math.exp(rng.uniform(math.log(lo), math.log(hi))))
-            p = Product(organization_id=org.id, category_id=cats[cname].id, sku=f"{cname[:3].upper()}-{n:04d}",
+            p = Product(organization_id=org.id, category_id=cats[cname].id, sku=f"{''.join(ch for ch in cname if ch.isalnum())[:3].upper()}-{n:04d}",
                         name=nm, description=f"{nm} for industrial and warehouse use.",
                         manufacturer=rng.choice(MANUFACTURERS), unit_of_measure=uom, unit_price=price,
                         is_active=rng.random() > 0.04)

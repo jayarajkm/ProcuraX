@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     anthropic_model: str = "claude-sonnet-5-5"
     groq_api_key: str = ""
     groq_model: str = "llama-3.3-70b-versatile"
+    embedding_provider: str = "local"  # local | openai (any OpenAI-compatible /embeddings API) | cohere
+    embedding_api_key: str = ""
+    embedding_base_url: str = "https://api.openai.com/v1"
+    db_pool_size: int = 5
+    db_max_overflow: int = 5
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
     embedding_dim: int = 384
     seed: int = 42

@@ -2,7 +2,7 @@ import os
 import re
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.errors import AppError, NotFound
@@ -63,7 +63,7 @@ def process_document(db: Session, doc_id) -> int:
         if not chunks:
             raise X.ExtractionError("No extractable text found in the document")
         emb = get_embedder()
-        vecs = emb.embed([c["content"] for c in chunks])
+        vecs = emb.embed([c["content"] for c in chunks], "document")
         db.execute(delete(DocumentChunk).where(DocumentChunk.document_id == d.id))
         for i, (c, v) in enumerate(zip(chunks, vecs)):
             db.add(DocumentChunk(document_id=d.id, chunk_index=i, content=c["content"], page_number=c["page"], embedding=v,
@@ -81,10 +81,17 @@ def process_document(db: Session, doc_id) -> int:
 
 
 def search_chunks(db: Session, query: str, top_k: int = 4, min_similarity: float = 0.30, category: str | None = None) -> list[dict]:
-    qv = get_embedder().embed([query])[0]
+    emb = get_embedder()
+    total = db.scalar(select(func.count()).select_from(DocumentChunk)) or 0
+    mine = db.scalar(select(func.count()).select_from(DocumentChunk).where(DocumentChunk.embedding_model == emb.model_name)) or 0
+    if total and not mine:  # vectors from different models are not comparable: refuse instead of returning garbage
+        from app.ingestion.embeddings import EmbeddingError
+        raise EmbeddingError(f"Documents were indexed with a different embedding model than the current '{emb.model_name}'. "
+                             "Re-index them: python -m app.workers.runner --reindex-all --once")
+    qv = emb.embed([query], "query")[0]
     dist = DocumentChunk.embedding.cosine_distance(qv)
     stmt = (select(DocumentChunk, Document, (1 - dist).label("sim")).join(Document, Document.id == DocumentChunk.document_id)
-            .where(Document.status == "indexed").order_by(dist).limit(top_k))
+            .where(Document.status == "indexed", DocumentChunk.embedding_model == emb.model_name).order_by(dist).limit(top_k))
     if category:
         stmt = stmt.where(Document.category == category)
     return [{"document_id": d.id, "title": d.title, "filename": d.filename, "chunk_index": c.chunk_index, "page": c.page_number,

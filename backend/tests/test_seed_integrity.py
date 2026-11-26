@@ -10,20 +10,21 @@ def count(db, model):
 
 def test_health(db):
     h = check_database(db)
-    assert h["pgvector"] and h["migration"] == "0002"
+    assert h["pgvector"] and h["migration"] == "0003"
 
 
 def test_target_counts(db):
-    assert count(db, Product) == 200
-    assert count(db, Supplier) == 30
+    """Seeded targets. Entities users can create through the app are checked with >= so real usage doesn't break the suite."""
+    assert count(db, Product) >= 200
+    assert count(db, Supplier) >= 30
     assert count(db, Warehouse) == 5
-    assert count(db, Inventory) == 1000
+    assert count(db, Inventory) >= 1000
     assert count(db, DemandHistory) >= 5000
-    assert count(db, PurchaseOrder) == 150
-    assert count(db, PurchaseOrderLine) == 400
-    assert count(db, PurchaseRequest) == 100
+    assert count(db, PurchaseOrder) >= 150
+    assert count(db, PurchaseOrderLine) >= 400
+    assert count(db, PurchaseRequest) >= 100
     assert count(db, SupplierMessage) == 300
-    assert count(db, Document) == 10
+    assert count(db, Document) >= 10
     assert count(db, User) == 4 and count(db, Role) == 4
     assert count(db, ChatbotType) == 6
 
@@ -71,8 +72,8 @@ def test_inventory_invariants(db):
 
 
 def test_every_product_has_suppliers_and_one_preferred(db):
-    r = db.execute(text("select count(*) from products p where (select count(*) from supplier_products where product_id=p.id) < 2 "
-                        "or (select count(*) from supplier_products where product_id=p.id and is_preferred) <> 1")).scalar()
+    r = db.execute(text("select count(*) from products p where p.sku like '%-____' and ((select count(*) from supplier_products where product_id=p.id) < 2 "
+                        "or (select count(*) from supplier_products where product_id=p.id and is_preferred) <> 1)")).scalar()
     assert r == 0
 
 
@@ -96,3 +97,24 @@ def test_unique_constraints_enforced(db):
     with pytest.raises(IntegrityError):
         db.flush()
     db.rollback()
+
+
+def test_reference_sync_is_idempotent_even_after_startup_sync(db):
+    """Regression: on a fresh deploy the API's startup sync populates intents/rules/providers BEFORE the seed runs; both must coexist."""
+    from sqlalchemy import delete
+    from app.api.routes.admin import ensure_provider_rows
+    from app.database.seeding.reference import INTENTS, RULES, sync_reference
+    from app.database.session import engine
+    from sqlalchemy.orm import Session
+    conn = engine.connect(); trans = conn.begin()
+    s = Session(bind=conn, join_transaction_mode="create_savepoint")
+    try:
+        s.execute(delete(IntentDefinition)); s.execute(delete(RuleDefinition)); s.execute(delete(AIProviderConfiguration)); s.flush()
+        first = sync_reference(s); ensure_provider_rows(s)          # what the API does at startup on an empty DB
+        second = sync_reference(s); ensure_provider_rows(s)         # what the seed does afterwards: must add nothing and not collide
+        assert first["intents"] == len(INTENTS) and first["rules"] == len(RULES)
+        assert second == {"intents": 0, "examples": 0, "rules": 0, "rule_patterns": 0}
+        assert s.scalar(select(func.count()).select_from(AIProviderConfiguration)) == 2
+        assert s.scalar(select(func.count()).select_from(AIProviderConfiguration).where(AIProviderConfiguration.is_default)) == 1
+    finally:
+        s.close(); trans.rollback(); conn.close()

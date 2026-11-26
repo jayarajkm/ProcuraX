@@ -7,8 +7,6 @@ from app.api.deps import audit, require
 from app.core.config import get_settings
 from app.core.errors import AppError, NotFound
 from app.database.session import get_db
-from app.ml import predict as P
-from app.ml.train import train_all
 from app.models import ChatbotMessage, ChatbotSession, ChatbotType, MLModelRegistry, User
 from app.services import chat as chat_svc
 
@@ -94,6 +92,7 @@ def ml_models(db: Session = Depends(get_db), _: User = Depends(require("ml:read"
 
 @router.post("/ml/train")
 def ml_train(db: Session = Depends(get_db), user: User = Depends(require("ml:train"))):
+    from app.ml.train import train_all  # lazy: keeps pandas/scikit-learn out of the API process until needed (1 GB servers)
     rows = train_all(db)
     audit(db, user, "ml.train", "ml_model_registry", ",".join(r.version for r in rows)); db.commit()
     return [_model_out(r) for r in rows]
@@ -101,6 +100,7 @@ def ml_train(db: Session = Depends(get_db), user: User = Depends(require("ml:tra
 
 @router.post("/ml/classify")
 def ml_classify(body: ClassifyIn, db: Session = Depends(get_db), _: User = Depends(require("ml:read"))):
+    from app.ml import predict as P
     try:
         out = P.classify_message(db, body.text)
     except P.ModelNotTrained as e:
@@ -111,6 +111,7 @@ def ml_classify(body: ClassifyIn, db: Session = Depends(get_db), _: User = Depen
 
 @router.get("/ml/stockout-risk")
 def ml_stockout(limit: int = 10, threshold: float = 0.5, db: Session = Depends(get_db), _: User = Depends(require("ml:read"))):
+    from app.ml import predict as P
     try:
         out = P.stockout_scan(db, limit=min(limit, 100), threshold=threshold)
     except P.ModelNotTrained as e:

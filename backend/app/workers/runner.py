@@ -41,6 +41,14 @@ def run_once() -> int:
             job.finished_at = datetime.now(timezone.utc); db.commit(); n += 1
 
 
+def reindex_all():
+    """Queue every document for re-embedding (after changing EMBEDDING_PROVIDER / EMBEDDING_MODEL)."""
+    with SessionLocal() as db:
+        for d in db.scalars(select(Document).where(Document.status.in_(("indexed", "failed", "uploaded")))):
+            docs.reprocess(db, d)
+        db.commit()
+
+
 def enqueue_uploaded():
     with SessionLocal() as db:
         for d in db.scalars(select(Document).where(Document.status == "uploaded")):
@@ -51,8 +59,10 @@ def enqueue_uploaded():
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    ap = argparse.ArgumentParser(); ap.add_argument("--once", action="store_true"); ap.add_argument("--enqueue-uploaded", action="store_true")
+    ap = argparse.ArgumentParser(); ap.add_argument("--once", action="store_true"); ap.add_argument("--enqueue-uploaded", action="store_true"); ap.add_argument("--reindex-all", action="store_true")
     a = ap.parse_args()
+    if a.reindex_all:
+        reindex_all()
     if a.enqueue_uploaded:
         enqueue_uploaded()
     if a.once:

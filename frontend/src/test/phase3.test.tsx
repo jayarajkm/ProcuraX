@@ -159,7 +159,7 @@ describe('AIAnalyticsPage', () => {
     expect(screen.getByText('No approvals recorded')).toBeInTheDocument()
   })
   it('nav keeps the required order with Analytics beside ML Models', () => {
-    expect(NAV_ITEMS.map((n) => n.label)).toEqual(['Overview', 'Products', 'Suppliers', 'Inventory', 'Purchase Orders', 'Procurement Requests', 'Documents', 'AI Chatbots', 'Chatbot Comparison', 'Knowledge Center', 'Agent Workspace', 'ML Models', 'AI Analytics', 'AI Administration', 'Settings'])
+    expect(NAV_ITEMS.map((n) => n.label)).toEqual(['Overview', 'Products', 'Suppliers', 'Inventory', 'Warehouses', 'Replenishment', 'Pricing & Breaks', 'Purchase Orders', 'Procurement Requests', 'Documents', 'AI Chatbots', 'Chatbot Comparison', 'Knowledge Center', 'Agent Workspace', 'ML Models', 'AI Analytics', 'AI Administration', 'Settings'])
     expect(NAV_ITEMS.find((n) => n.path === '/compare')?.placeholder).toBeUndefined()
     expect(NAV_ITEMS.find((n) => n.path === '/admin')?.placeholder).toBeUndefined()
   })

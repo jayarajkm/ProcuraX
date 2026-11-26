@@ -4,7 +4,7 @@ from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy.orm import Session
-from app.api.routes import admin, agent, analytics, auth, catalogue, chatbots, documents, operations
+from app.api.routes import admin, agent, analytics, auth, catalogue, chatbots, distribution, documents, operations
 from app.core.config import assert_production_safe, get_settings
 from app.core.errors import install_handlers
 from app.core.ratelimit import limiter
@@ -35,10 +35,10 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 app.add_middleware(CORSMiddleware, allow_origins=[o.strip() for o in get_settings().cors_origins.split(",")],
-                   allow_methods=["GET", "POST", "PATCH", "DELETE"], allow_headers=["Authorization", "Content-Type"])
+                   allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"], allow_headers=["Authorization", "Content-Type"])
 install_handlers(app)
 
-for r in (auth.router, catalogue.router, operations.router, chatbots.router, documents.router, agent.router, analytics.router, admin.router):
+for r in (auth.router, catalogue.router, operations.router, chatbots.router, documents.router, agent.router, analytics.router, admin.router, distribution.router):
     app.include_router(r, prefix="/api/v1")
 
 

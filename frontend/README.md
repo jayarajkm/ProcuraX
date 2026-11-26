@@ -37,6 +37,13 @@ LIVE_API=http://127.0.0.1:8000 pnpm test:live   # optional smoke test of every p
 - `src/pages/` — Overview, Products, Suppliers, Inventory, Purchase Orders, Requests, Settings, Placeholder, plus the AI pages below.
 - `src/components/chat/` — `ResponseDetails` (metadata renderer), `RichText` (safe `**bold**`/newlines), `ApprovalCallout`, per-bot styles. `src/components/ml/MLMetrics.tsx` — model cards, confusion-matrix heat grid, feature-importance chart. `src/components/ApprovalActions.tsx` — permission-gated approve/reject.
 
+## Response language (all chatbots)
+- `GET /languages` feeds `LanguageSelect` (`src/components/LanguageSelect.tsx`, native `<select>`, shows `native_name (name)`). The choice is one shared preference (`useLanguage()` in `src/hooks/useLanguage.ts`, localStorage key `procurax.language`, default `en`; an unknown stored code or a failed language list falls back to `en`). Changing it never sends a request.
+- Sent as `language` in `POST /chatbots/{slug}/chat` (Playground), `POST /compare/{slug}` (all six calls) and `POST /agent/executions` (Agent form). Knowledge Center's RAG hand-off still only passes `?q=`.
+- Disclosure (`src/components/chat/TranslationInfo.tsx`): badge "Translated by LLM" (rule-based/NLP/ML: English answer translated by the LLM, so a configured LLM provider is required) or "Answered in <language>" (LLM bots); a "Language & translation" section in Response details (mode, English question used, expandable original English reply, what stays English, note); an amber "Translation unavailable — showing English" warning when `input_/output_translation_error` exist. Only fields the backend sent are shown; English and legacy messages render nothing.
+- RTL languages (`rtl: true`, e.g. Arabic): assistant replies and the input get `dir="rtl"`; details, tables and IDs stay LTR.
+- Agent: plan, tool calls and audit logs stay English; only the final answer is localised. Execution detail shows a language chip.
+
 ## AI pages
 | Route | Page | Backend | Permissions |
 |---|---|---|---|

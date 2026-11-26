@@ -76,7 +76,7 @@ def recommendations(db: Session, warehouse_id=None, limit: int = 100) -> list[di
         qty = reorder_quantity(inv.avg_daily_demand, lt, inv.safety_stock, projected(inv), rd, moq)
         if qty <= 0:
             continue  # already covered by open orders
-        out.append(dict(product_id=inv.product_id, sku=inv.product.sku, product_name=inv.product.name, warehouse=inv.warehouse.name, warehouse_id=inv.warehouse_id,
+        out.append(dict(inventory_id=inv.id, avg_daily_demand=inv.avg_daily_demand, product_id=inv.product_id, sku=inv.product.sku, product_name=inv.product.name, warehouse=inv.warehouse.name, warehouse_id=inv.warehouse_id,
                         available=available(inv), projected=projected(inv), days_of_cover=days_of_cover(inv), suggested_quantity=qty,
                         supplier_id=best[1].id if best else None, supplier_name=best[1].name if best else None,
                         lead_time_days=lt if best else None, unit_price=best[0].unit_price if best else None))

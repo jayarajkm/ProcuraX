@@ -7,7 +7,7 @@ import type {
   Language, MLModel, PendingApproval, SearchResponse, StockoutScan,
   Approval, Category, InventoryRow, ListParams, Movement, Overview, Page, PO, PODetail, POCreate, Product, ProductInput,
   ProductUpdate, PurchaseRequest, Recommendation, RequestCreate, Supplier, SupplierInput, SupplierPerformance,
-  SupplierProduct, SupplierUpdate, Warehouse,
+  SupplierProduct, SupplierUpdate, Warehouse, Customer, OwnershipSummary, Quote, SalesBreaks, Shortage, ShortagePOResult, Tier,
 } from '@/lib/types'
 
 export const qk = {
@@ -255,3 +255,22 @@ export const usePatchAgent = () =>
 export const usePatchTool = () =>
   useApiMutation((v: { name: string; is_enabled: boolean }) => api.patch<unknown>(`/admin/tools/${v.name}`, { is_enabled: v.is_enabled }),
     [['admin-tools'], ['agent-tools'], auditKey], (_d) => 'Tool updated')
+
+// ---- distributor: ownership, price breaks, replenishment ----
+export const useOwnershipSummary = () => useQuery({ queryKey: ['ownership-summary'], queryFn: () => api.get<OwnershipSummary>('/warehouses/ownership-summary') })
+export const useCustomers = () => useQuery({ queryKey: ['customers'], queryFn: () => api.get<Customer[]>('/customers'), staleTime: 60_000 })
+export const useShortages = (warehouseId: string | undefined, takePriceBreaks: boolean) =>
+  useQuery({ queryKey: ['shortages', warehouseId ?? '', takePriceBreaks], queryFn: () => api.get<Shortage[]>('/replenishment/shortages', { warehouse_id: warehouseId, take_price_breaks: takePriceBreaks ? true : undefined }) })
+export const useCreateShortagePOs = () =>
+  useApiMutation((b: { warehouse_id: string; take_price_breaks: boolean }) => api.post<ShortagePOResult>('/replenishment/create-pos', b),
+    [['shortages'], ['purchase-orders'], ['inventory'], ['reorder'], dash])
+export const useQuote = (product: string, quantity: number, customer: string) =>
+  useQuery({ queryKey: ['quote', product, quantity, customer], enabled: !!product && quantity >= 1,
+    queryFn: () => api.get<Quote>('/pricing/quote', { product_id: product, quantity, customer_id: customer || undefined }) })
+export const useSalesBreaks = (product: string, customer: string) =>
+  useQuery({ queryKey: ['sales-breaks', product, customer], enabled: !!product,
+    queryFn: () => api.get<SalesBreaks>(`/price-breaks/sales/${product}`, { customer_id: customer || undefined }) })
+export const useSaveSalesBreaks = () =>
+  useApiMutation((v: { product: string; customer: string; breaks: { min_qty: number; unit_price: number }[] }) =>
+    api.put<{ breaks: Tier[] }>(`/price-breaks/sales/${v.product}${v.customer ? `?customer_id=${v.customer}` : ''}`, { breaks: v.breaks }),
+    [['sales-breaks'], ['quote']], 'Price breaks saved')

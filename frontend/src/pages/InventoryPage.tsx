@@ -24,6 +24,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useAdjustInventory, useCreateRequest, useInventory, useMovements, useReorder, useWarehouses } from '@/hooks/api'
 import { useListState } from '@/hooks/useListState'
+import { OWNERSHIP_LABEL, OWNERSHIP_TONE } from '@/lib/distribution'
 import { fmtDateTime, fmtMoney, fmtNumber, titleCase } from '@/lib/format'
 import type { InventoryRow, Recommendation } from '@/lib/types'
 
@@ -87,12 +88,13 @@ function StockTab() {
   const params = { ...ls.params, sort: undefined, order: undefined, warehouse_id: ls.filters.warehouse_id || undefined, low_stock: ls.filters.low_stock === 'true' ? true : undefined }
   const { data, isLoading, error, refetch } = useInventory(params)
   const { data: warehouses } = useWarehouses()
+  const whOwner = new Map((warehouses ?? []).map((w) => [w.id, w.ownership_type ?? 'self']))
   const [adjusting, setAdjusting] = useState<InventoryRow | null>(null)
   const [history, setHistory] = useState<InventoryRow | null>(null)
 
   const columns: Column<InventoryRow>[] = [
     { key: 'product', header: 'Product', cell: (r) => <div><div className="font-medium">{r.product_name}</div><div className="font-mono text-xs text-muted-foreground">{r.sku}</div></div> },
-    { key: 'wh', header: 'Warehouse', cell: (r) => r.warehouse },
+    { key: 'wh', header: 'Warehouse', cell: (r) => { const o = whOwner.get(r.warehouse_id); return <div>{r.warehouse}{o && o !== 'self' && <Badge tone={OWNERSHIP_TONE[o]} className="ml-2">{OWNERSHIP_LABEL[o]}</Badge>}</div> } },
     { key: 'onhand', header: 'On hand', align: 'right', cell: (r) => fmtNumber(r.quantity_on_hand) },
     { key: 'avail', header: 'Available', align: 'right', cell: (r) => fmtNumber(r.available) },
     { key: 'proj', header: 'Projected', align: 'right', cell: (r) => fmtNumber(r.projected) },

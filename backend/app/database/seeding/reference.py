@@ -146,20 +146,15 @@ def seed_reference(db: Session, org: Organization) -> dict:
     db.flush()
     for k, v in POLICY_VALUES.items():
         db.add(ChatbotConfiguration(chatbot_type_id=types["rule_based"].id, key=k, value={"value": v}))
-    for name, (action, examples) in INTENTS.items():
-        i = IntentDefinition(name=name, action=action, description=name.replace("_", " "))
-        db.add(i)
-        db.flush()
-        db.add_all(IntentExample(intent_id=i.id, text=e) for e in examples)
-    for name, patterns, tmpl, src in RULES:
-        db.add(RuleDefinition(name=name, patterns=patterns, response_template=tmpl, value_source=src))
+    # intents / rules are created by the idempotent sync (the API also runs it at startup, so plain inserts here would collide)
+    sync_reference(db)
     for name, desc, perm, sens in TOOLS:
         db.add(AgentToolRegistry(name=name, description=desc, input_schema={}, required_permission=perm, is_sensitive=sens))
     db.add(AgentDefinition(name="procurement_agent", system_prompt=PROMPTS[2][1], max_iterations=10, timeout_seconds=120))
     for n, t, v in PROMPTS:
         db.add(PromptTemplate(name=n, template=t, variables=v))
-    db.add(AIProviderConfiguration(provider="anthropic", model="claude-sonnet-5-5",
-                                   api_key_env_var="ANTHROPIC_API_KEY", is_default=True))
+    from app.api.routes.admin import ensure_provider_rows
+    ensure_provider_rows(db)  # idempotent (also run by the API at startup)
     db.flush()
     return {"users": users, "roles": roles, "types": types}
 

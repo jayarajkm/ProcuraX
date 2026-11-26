@@ -41,7 +41,32 @@ export interface SupplierPerformance {
   avg_delay_days: number | null; total_orders: number
 }
 
-export interface Warehouse { id: string; code: string; name: string; location: string }
+export type Ownership = 'self' | 'vendor' | 'customer'
+export interface Warehouse {
+  id: string; code: string; name: string; location: string
+  ownership_type?: Ownership; owner_name?: string; owner_supplier_id?: string | null; owner_customer_id?: string | null
+}
+export interface OwnershipSummary { [warehouseId: string]: { skus: number; units_on_hand: number } }
+export interface Customer { id: string; code: string; name: string; segment: string; contact_person: string; email: string; is_active: boolean }
+export interface Tier { min_qty: number; unit_price: string | number }
+export interface SalesBreaks { list_price: string; breaks: Tier[] }
+export interface Quote {
+  product_id: string; sku: string; product_name: string; quantity: number; customer: string | null; list_price: string
+  sell_unit_price: string; sell_total: string; sell_breaks: Tier[]; next_sell_break: Tier | null
+  cost_unit_price: string | null; cost_total: string | null; supplier_name: string | null; margin: string | null; margin_pct: number | null
+}
+export type ShortageAction = 'purchase' | 'consignment' | 'notify_customer' | 'no_supplier'
+export interface BreakOption { min_qty: number; unit_price: string | number; extra_units: number; extra_cost: string | number; saving_per_unit: string | number; cheaper_in_total: boolean }
+export interface Shortage {
+  product_id: string; sku: string; product_name: string; warehouse: string; warehouse_id: string; ownership_type: Ownership; owner_name: string
+  available: number; projected: number; days_of_cover: number | null; needed_quantity: number; quantity: number; action: ShortageAction; reason: string
+  supplier_id: string | null; supplier_name: string | null; lead_time_days: number | null; unit_price: string | number | null
+  line_total: string | number | null; break_option: BreakOption | null; break_applied: boolean; order_type: string
+}
+export interface ShortagePOResult {
+  created: { id: string; po_number: string; supplier_name: string; warehouse_name: string; order_type: string; total_amount: string; lines: number }[]
+  skipped: { sku: string; action: string; reason: string }[]
+}
 export interface InventoryRow {
   id: string; product_id: string; sku: string; product_name: string; warehouse_id: string; warehouse: string
   quantity_on_hand: number; quantity_reserved: number; quantity_on_order: number; reorder_level: number
@@ -60,6 +85,7 @@ export interface POHistory { from_status: string | null; to_status: string; chan
 export interface PO {
   id: string; po_number: string; supplier_id: string; warehouse_id: string; status: string; order_date: string
   expected_delivery_date: string; actual_delivery_date: string | null; subtotal: string; tax_amount: string; total_amount: string
+  order_type?: 'standard' | 'consignment'
 }
 export interface PODetail extends PO { lines: POLine[]; history: POHistory[] }
 export interface POCreate {

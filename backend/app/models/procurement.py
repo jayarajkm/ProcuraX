@@ -27,6 +27,8 @@ class PurchaseOrder(IdMixin, TimestampMixin, Base):
     tax_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     total_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     source_request_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("purchase_requests.id"))
+    # standard = we buy and own the goods on receipt; consignment = vendor-owned stock, cost is incurred when consumed
+    order_type: Mapped[str] = mapped_column(String(12), default="standard", server_default="standard")
     supplier: Mapped["Supplier"] = relationship(lazy="joined")
     warehouse: Mapped["Warehouse"] = relationship(lazy="joined")
     lines: Mapped[list["PurchaseOrderLine"]] = relationship(back_populates="order", cascade="all, delete-orphan", lazy="selectin")

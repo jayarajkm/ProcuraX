@@ -5,7 +5,8 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
-RUN pnpm build
+# cap Node's heap so the build fits on small servers (with swap)
+RUN NODE_OPTIONS=--max-old-space-size=640 pnpm build
 
 # Stage 2: serve static files (unprivileged nginx, SPA fallback)
 FROM nginxinc/nginx-unprivileged:1.27-alpine

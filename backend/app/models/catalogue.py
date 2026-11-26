@@ -57,13 +57,58 @@ class SupplierProduct(IdMixin, TimestampMixin, Base):
     __table_args__ = (UniqueConstraint("supplier_id", "product_id"),)
 
 
+class Customer(IdMixin, TimestampMixin, Base):
+    __tablename__ = "customers"
+    organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
+    code: Mapped[str] = mapped_column(String(20))
+    name: Mapped[str] = mapped_column(String(200), index=True)
+    segment: Mapped[str] = mapped_column(String(40), default="standard")  # standard | contract | key_account
+    contact_person: Mapped[str] = mapped_column(String(200), default="")
+    email: Mapped[str] = mapped_column(String(254), default="")
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    __table_args__ = (UniqueConstraint("organization_id", "code"),)
+
+
+class SupplierPriceBreak(IdMixin, Base):
+    """Buy side: what a supplier charges per unit once the order quantity reaches min_qty."""
+    __tablename__ = "supplier_price_breaks"
+    supplier_product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("supplier_products.id", ondelete="CASCADE"), index=True)
+    min_qty: Mapped[int] = mapped_column(Integer)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    __table_args__ = (UniqueConstraint("supplier_product_id", "min_qty"), CheckConstraint("min_qty >= 1 AND unit_price >= 0"))
+
+
+class SalesPriceBreak(IdMixin, Base):
+    """Sell side: unit price to a customer once the quantity reaches min_qty. customer_id NULL = list price tiers."""
+    __tablename__ = "sales_price_breaks"
+    product_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), index=True)
+    customer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("customers.id", ondelete="CASCADE"), index=True)
+    min_qty: Mapped[int] = mapped_column(Integer)
+    unit_price: Mapped[Decimal] = mapped_column(Numeric(14, 2))
+    __table_args__ = (UniqueConstraint("product_id", "customer_id", "min_qty", postgresql_nulls_not_distinct=True),
+                      CheckConstraint("min_qty >= 1 AND unit_price >= 0"))
+
+
 class Warehouse(IdMixin, TimestampMixin, Base):
     __tablename__ = "warehouses"
     organization_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("organizations.id"), index=True)
     code: Mapped[str] = mapped_column(String(20))
     name: Mapped[str] = mapped_column(String(120))
     location: Mapped[str] = mapped_column(String(200), default="")
-    __table_args__ = (UniqueConstraint("organization_id", "code"),)
+    # who owns the stock held here: self (we), vendor (consignment stock), customer (held on the customer's behalf)
+    ownership_type: Mapped[str] = mapped_column(String(10), default="self", server_default="self")
+    owner_supplier_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("suppliers.id"))
+    owner_customer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("customers.id"))
+    owner_supplier: Mapped["Supplier | None"] = relationship(lazy="joined", foreign_keys=[owner_supplier_id])
+    owner_customer: Mapped["Customer | None"] = relationship(lazy="joined", foreign_keys=[owner_customer_id])
+    __table_args__ = (UniqueConstraint("organization_id", "code"),
+                      CheckConstraint("ownership_type IN ('self','vendor','customer')"))
+
+    @property
+    def owner_name(self) -> str:
+        if self.ownership_type == "vendor" and self.owner_supplier is not None: return self.owner_supplier.name
+        if self.ownership_type == "customer" and self.owner_customer is not None: return self.owner_customer.name
+        return "Own stock"
 
 
 class Inventory(IdMixin, TimestampMixin, Base):

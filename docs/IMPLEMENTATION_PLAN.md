@@ -11,5 +11,7 @@ Status legend: [ ] todo, [~] in progress, [x] done
 - [x] Phase 6 backend (tested with scripted provider) — Agent tools, planner, approvals
 - [x] Phase 7 — comparison, AI analytics, insights, admin (UI not browser-tested)
 - [~] Phase 8 — prod config + scripts built and tested locally; real droplet/DNS/HTTPS NOT done (needs approval)
+- [~] Phase 9 — distributor layer (backend built + tested; frontend pages in progress): warehouse ownership (self/vendor/customer), supplier + sales price breaks, quote with margin, shortage -> PO by ownership, goods receipt updates stock + ledger
+- [ ] Phase 10 — production mode (empty DB + bootstrap admin, importers, user management), then real deployment
 
 Rule: a phase is complete only when its tests pass and its docs are updated.

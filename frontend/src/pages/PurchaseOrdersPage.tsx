@@ -16,6 +16,7 @@ import { SearchInput } from '@/components/SearchInput'
 import { KeyValue } from '@/components/Sections'
 import { DetailSkeleton } from '@/components/Skeletons'
 import { StatusBadge } from '@/components/StatusBadge'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input, Select } from '@/components/ui/input'
@@ -199,7 +200,7 @@ export function PurchaseOrdersPage() {
   const [createOpen, setCreateOpen] = useState(false)
 
   const columns: Column<PO>[] = [
-    { key: 'po', header: 'PO number', sortKey: 'po_number', cell: (p) => <span className="font-medium">{p.po_number}</span> },
+    { key: 'po', header: 'PO number', sortKey: 'po_number', cell: (p) => <span className="font-medium">{p.po_number}{p.order_type === 'consignment' && <Badge tone="purple" className="ml-2" title="Vendor-owned stock; cost is incurred when used">Consignment</Badge>}</span> },
     { key: 'supplier', header: 'Supplier', cell: (p) => suppliers.name(p.supplier_id) },
     { key: 'wh', header: 'Warehouse', cell: (p) => warehouses.name(p.warehouse_id) },
     { key: 'status', header: 'Status', cell: (p) => <StatusBadge status={p.status} /> },

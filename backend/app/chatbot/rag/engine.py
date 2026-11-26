@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from app.chatbot.generative.provider import ProviderError, ProviderNotConfigured, get_provider
 from app.chatbot import i18n
+from app.ingestion.embeddings import EmbeddingError
 from app.chatbot.types import ChatResult
 from app.models import PromptTemplate
 from app.services import documents as docs
@@ -12,7 +13,11 @@ NO_INFO = "The uploaded knowledge base does not contain sufficient information t
 
 
 def answer(db: Session, message: str, history=None, top_k: int = 4, min_similarity: float = 0.30, language: str = "en", english_query: str | None = None, **_) -> ChatResult:
-    hits = docs.search_chunks(db, english_query or message, top_k=top_k, min_similarity=min_similarity)
+    try:
+        hits = docs.search_chunks(db, english_query or message, top_k=top_k, min_similarity=min_similarity)
+    except EmbeddingError as e:
+        return ChatResult(reply=f"The embedding service is unavailable, so I cannot search the documents: {e}", approach="RAG: embedding error",
+                          data_sources=["documents"], status="provider_error")
     steps = [f"Embedded the question and searched pgvector (top_k={top_k}, min similarity {min_similarity})", f"{len(hits)} chunk(s) passed the threshold"]
     cites = [{"ref": i + 1, "document": h["title"], "document_id": str(h["document_id"]), "page": h["page"], "chunk_index": h["chunk_index"],
               "similarity": h["similarity"], "excerpt": h["content"][:300]} for i, h in enumerate(hits)]
